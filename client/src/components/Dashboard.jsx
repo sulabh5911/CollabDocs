@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api';
 import Navbar from './Navbar';
-import { Plus, Search, FileText, Upload, Clock, Users, File, UserCircle } from 'lucide-react';
+import { Plus, Search, FileText, Upload, Clock, Users, File, UserCircle, Trash2 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 
 const Dashboard = () => {
@@ -37,6 +37,18 @@ const Dashboard = () => {
       navigate(`/document/${res.data._id}`);
     } catch (err) {
       setError('Failed to create document');
+    }
+  };
+
+  const handleDeleteDocument = async (e, docId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this document?')) return;
+    try {
+      await api.delete(`/documents/${docId}`);
+      fetchDocuments();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to delete document');
     }
   };
 
@@ -198,12 +210,23 @@ const Dashboard = () => {
                         <div className="p-2.5 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
                           <FileText size={24} />
                         </div>
-                        {!isOwner && (
-                          <span className="bg-gray-100 text-gray-600 text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
-                            <Users size={12} />
-                            Shared
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {!isOwner && (
+                            <span className="bg-gray-100 text-gray-600 text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
+                              <Users size={12} />
+                              Shared
+                            </span>
+                          )}
+                          {isOwner && (
+                            <button
+                              onClick={(e) => handleDeleteDocument(e, doc._id)}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Delete Document"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                       
                       <h3 className="font-semibold text-gray-900 text-lg mb-1 truncate">{doc.title}</h3>

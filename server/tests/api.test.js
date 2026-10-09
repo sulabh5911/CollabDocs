@@ -121,4 +121,63 @@ describe('Document API', () => {
 
     // We can't easily test oversized upload in memory without generating a 2MB buffer, let's just test unsupported type.
   });
+
+  it('Lists documents grouped by owned and shared', async () => {
+    await Document.create({ title: 'Alice Owned Doc', owner: alice._id });
+    await Document.create({
+      title: 'Shared with Alice',
+      owner: bob._id,
+      sharedWith: [{ user: alice._id, role: 'viewer' }]
+    });
+
+    const res = await request(app)
+      .get('/api/documents')
+      .set('X-Demo-User-Email', alice.email);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('owned');
+    expect(res.body).toHaveProperty('shared');
+    expect(res.body.owned.length).toBe(1);
+    expect(res.body.owned[0].title).toBe('Alice Owned Doc');
+    expect(res.body.shared.length).toBe(1);
+    expect(res.body.shared[0].title).toBe('Shared with Alice');
+  });
+
+  it('Owner can share document with another user', async () => {
+    const doc = await Document.create({ title: 'Doc to Share', owner: alice._id });
+
+    const res = await request(app)
+      .post(`/api/documents/${doc._id}/share`)
+      .set('X-Demo-User-Email', alice.email)
+      .send({ email: bob.email, role: 'editor' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toBe('Document shared successfully');
+
+    const updatedDoc = await Document.findById(doc._id);
+    expect(updatedDoc.sharedWith.length).toBe(1);
+    expect(updatedDoc.sharedWith[0].role).toBe('editor');
+  });
+
+  it('Owner can delete document, non-owner is forbidden', async () => {
+    const doc = await Document.create({ title: 'Doc to Delete', owner: alice._id });
+
+    // Non-owner attempt
+    const forbiddenRes = await request(app)
+      .delete(`/api/documents/${doc._id}`)
+      .set('X-Demo-User-Email', bob.email);
+
+    expect(forbiddenRes.status).toBe(403);
+
+    // Owner attempt
+    const deleteRes = await request(app)
+      .delete(`/api/documents/${doc._id}`)
+      .set('X-Demo-User-Email', alice.email);
+
+    expect(deleteRes.status).toBe(200);
+    expect(deleteRes.body.message).toBe('Document deleted');
+
+    const checkDoc = await Document.findById(doc._id);
+    expect(checkDoc).toBeNull();
+  });
 });
